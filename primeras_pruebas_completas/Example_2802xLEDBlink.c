@@ -1,3 +1,4 @@
+//Prueba de cambio
 //Laboratorio de procesammiento digital de señales UNAM
 /* Este programa configura los GPIO  de 0-7,12 como salidas digitales
  * configura la interrupcion del timer 0 ligada a la subrutina conversion_filtrado
