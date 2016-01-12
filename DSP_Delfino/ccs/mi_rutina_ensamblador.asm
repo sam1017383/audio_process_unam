@@ -1,13 +1,15 @@
+
 	.def _mi_rutina_ensamblador
 	.sect  "ramfuncs"
-	.global _inicio							;Constantes en Q12 3895.527491
-	.global _fin
+	.global _sampling_window
+	.global _WINDOW_LENGTH
+	.global _filtered_value
+	.global _current_sample
+
 
 _mi_rutina_ensamblador:
 
-
-
-     MOVW AL,@_inicio
-     ADD AL,@_fin
-     MOVW @_fin,AL
+     MOVW AL,@_current_sample
+     ADD AL, #30
+     MOVW @_filtered_value,AL
      LRETR

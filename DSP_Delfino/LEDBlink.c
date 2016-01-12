@@ -16,29 +16,32 @@
 //             http://www.ti.com/ ALL RIGHTS RESERVED $
 //###########################################################################
 
+#include "F28x_Project.h"     // Device Headerfile and Examples Include File
+#include "F2837xS_GlobalPrototypes.h"
+
 // constantes de configuracion
 #define REFERENCE_VDAC     1 // Convertidor DAC sin referencia externa
 #define CPU_CLOCK_100      100 // CPU a 100 MHZ
 #define INT_PERIOD_uS      50 // Periodo de interrupcion a 50 microS, 20,000 Hz
 
-// constantes
-#define WINDOW_LENGTH 30
+
+
+// variables del buffer circular de muestreo
+int WINDOW_LENGTH = 30; // longitud de la ventana de muestreo
+int sampling_window[30];
+int filter_coefs []={1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+int filtered_value;
+int oldest_index;
+int newest_index;
+int current_sample;
+
 
 // variables globales
 int contador_interrupciones = 0;
 int inicio = 1;
 int fin = 1;
-
-//variables para almacenar resultados de la conversion ADC
 int AdcaResult0;
-int window[WINDOW_LENGTH];
-short newest;
 
-
-
-
-#include "F28x_Project.h"     // Device Headerfile and Examples Include File
-#include "F2837xS_GlobalPrototypes.h"
 
 // Prototype statements for functions found within this file.
 __interrupt void cpu_timer0_isr(void);
@@ -46,10 +49,21 @@ __interrupt void cpu_timer0_isr(void);
 
 void ConfigureADC(void);
 void SetupADCSoftware(void);
-void mi_rutina_ensamblador(void);
+extern void mi_rutina_ensamblador(void);
 int  capture_from_adc_a0(void);
 int send_to_dac(int);
 int capture_to_window(void);
+
+void init_buffer(void);
+
+
+
+
+
+
+
+
+
 
 
 
@@ -57,30 +71,47 @@ int capture_to_window(void);
 // Main interruption subrutine
 __interrupt void cpu_timer0_isr(void){
    CpuTimer0.InterruptCount++;
+
+   // CALIBRACION: cuenta interrupciones para prender/apagar un LED cada segundo
    if (CpuTimer0.InterruptCount == 20000) {
 	   CpuTimer0.InterruptCount = 0;
-   GpioDataRegs.GPATOGGLE.bit.GPIO12 = 1; // Toggle GPIO34 once per 500 milliseconds
+	   GpioDataRegs.GPATOGGLE.bit.GPIO12 = 1; // Toggle GPIO12
    }
 
-   //envia valor analogico al pin 24
-   send_to_dac(222);
-   //captura valor analogico de pin 27
-   AdcaResult0 = capture_from_adc_a0();
+   // captura el nuevo valor en el buffer circular valor analogico de pin 27
+   current_sample = capture_from_adc_a0();
+   sampling_window[oldest_index] = current_sample;
+   // aumenta indices
+   newest_index = oldest_index;
+   if(oldest_index == 29)
+	   oldest_index =0;
+   else
+	   oldest_index ++;
 
-   //envia valor analogico al pin 24
-   send_to_dac(888);
-   //captura valor analogico de pin 27
-   AdcaResult0 = capture_from_adc_a0();
-
-   //subrutinas de filtrado
+   //subrutina de filtrado debe guardar resultado en filtered_value
    mi_rutina_ensamblador();
 
-
+   //envia valor filtrado analogico al pin 24
+   send_to_dac(filtered_value);
 
    // Acknowledge this __interrupt to receive more __interrupts from group 1
    PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 }
 
+
+
+
+
+
+void init_buffer(void){
+	int i;
+	for (i=0; i<WINDOW_LENGTH; i++){
+		sampling_window[i] = 0;
+	}
+	newest_index = 0;
+	oldest_index = 29;
+	filtered_value = 0.0;
+}
 
 
 
@@ -201,9 +232,13 @@ void main(void){
    DaccRegs.DACOUTEN.bit.DACOUTEN = 1;
    EDIS;
 
+// iniciar buffers de datos
+   init_buffer();
+
 // Enable global Interrupts and higher priority real-time debug events:
    EINT;   // Enable Global __interrupt INTM
    ERTM;   // Enable Global realtime __interrupt DBGM
+
 
 // Step 6. IDLE loop. Just sit and loop forever (optional):
    for(;;);
