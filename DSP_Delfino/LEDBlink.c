@@ -33,7 +33,9 @@ int filter_coefs []={1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
 int filtered_value;
 int oldest_index;
 int newest_index;
+int newest_inverted_index;
 int current_sample;
+float scaled_filtered_mac;
 
 
 // variables globales
@@ -72,6 +74,9 @@ void init_buffer(void);
 __interrupt void cpu_timer0_isr(void){
    CpuTimer0.InterruptCount++;
 
+   //envia valor filtrado analogico al pin 24
+   send_to_dac(100);
+
    // CALIBRACION: cuenta interrupciones para prender/apagar un LED cada segundo
    if (CpuTimer0.InterruptCount == 20000) {
 	   CpuTimer0.InterruptCount = 0;
@@ -81,22 +86,31 @@ __interrupt void cpu_timer0_isr(void){
    // captura el nuevo valor en el buffer circular valor analogico de pin 27
    current_sample = capture_from_adc_a0();
    sampling_window[oldest_index] = current_sample;
-   // aumenta indices
+   // aumenta los indices
    newest_index = oldest_index;
+   newest_inverted_index = WINDOW_LENGTH - newest_index -1;
    if(oldest_index == 29)
-	   oldest_index =0;
+	   oldest_index = 0;
    else
 	   oldest_index ++;
 
-   //subrutina de filtrado debe guardar resultado en filtered_value
+   //subrutina de filtrado que guarda el resultado en la variable filtered_value
    mi_rutina_ensamblador();
 
+   //
+   scaled_filtered_mac = filtered_value / WINDOW_LENGTH;
+   filtered_value = (int) scaled_filtered_mac;
    //envia valor filtrado analogico al pin 24
-   send_to_dac(filtered_value);
+   send_to_dac(100);
 
    // Acknowledge this __interrupt to receive more __interrupts from group 1
    PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 }
+
+
+
+
+
 
 
 
@@ -108,8 +122,9 @@ void init_buffer(void){
 	for (i=0; i<WINDOW_LENGTH; i++){
 		sampling_window[i] = 0;
 	}
-	newest_index = 0;
-	oldest_index = 29;
+	newest_index = 29;
+	newest_inverted_index = WINDOW_LENGTH - newest_index - 1;
+	oldest_index = 0;
 	filtered_value = 0.0;
 }
 
